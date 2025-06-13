@@ -1,0 +1,91 @@
+% run_pid_ga.m
+clear; clc; close all;
+
+% Disable Simulink model–level logging (as before)
+set_param('Updated_Shank_PID_Model', ...
+    'SaveOutput',    'off', ...
+    'SaveTime',      'off', ...
+    'SaveState',     'off', ...
+    'SignalLogging', 'off');
+
+load('sampleH.mat');  % if your model needs it
+
+% Lower/upper bounds for [Kp, Ki, Kd, N, Kp2, Ki2, Kd2, N2]
+lb = [ 0.1, 0.01,  0,  1, 0.1, 0.01,  0,  1];
+ub = [ 300,   80, 80, 20, 300,   80, 80, 20]; % can Edit
+
+options = optimoptions('ga', ...
+    'Display','iter', ...
+    'PopulationSize',30, ...
+    'MaxGenerations',50, ...
+    'UseParallel',true, ...
+    'PlotFcn',{@gaplotbestf});
+
+% 4 variables now
+[x_opt, fval] = ga(@pid_fitness, 8, [], [], [], [], lb, ub, [], options);
+
+% Unpack and save
+Kp = x_opt(1); Ki = x_opt(2); Kd = x_opt(3); N = x_opt(4);
+Kp2 = x_opt(5); Ki2 = x_opt(6); Kd2 = x_opt(7); N2 = x_opt(8);
+
+fprintf('Optimized → Kp=%.3f, Ki=%.3f, Kd=%.3f, N=%.1f\n', Kp, Ki, Kd, N);
+fprintf('Optimized → Kp2=%.3f, Ki2=%.3f, Kd2=%.3f, N2=%.1f\n', Kp2, Ki2, Kd2, N2);
+save('optimal_pid_gains.mat','Kp','Ki','Kd','N','Kp2','Ki2','Kd2','N2');
+
+
+function cost = pid_fitness(x)
+    % x = [Kp, Ki, Kd, N]
+    Kp = x(1);
+    Ki = x(2);
+    Kd = x(3);
+    N  = x(4);
+    Kp2 = x(5);
+    Ki2 = x(6);
+    Kd2 = x(7);
+    N2  = x(8);
+
+    % Push them into the base workspace so Simulink picks them up
+    assignin('base','Kp', Kp);
+    assignin('base','Ki', Ki);
+    assignin('base','Kd', Kd);
+    assignin('base','N',  N);
+    assignin('base','Kp2', Kp2);
+    assignin('base','Ki2', Ki2);
+    assignin('base','Kd2', Kd2);
+    assignin('base','N2',  N2);
+
+    w_e = 0.3;     % weight on RMSE
+    w_u = 0.4;    % weight on energy
+
+    try
+        simOut = sim('Updated_Shank_PID_Model', ...
+            'SimulationMode','normal', ...
+            'StopTime','80', ...
+            'SaveOutput','on', ...
+            'SaveTime','on' ...
+            );
+
+        y = simOut.get('y_out').signals.values;
+        t = simOut.y_out.time; 
+        u = simOut.u_out.signals.values;
+
+        ref = ones(size(y));
+        e   = ref - y;
+        Npts = length(e);
+        dt   = t(2) - t(1);
+        
+        rmse = sqrt( mean(e.^2)/Npts );
+
+        cost = rmse;
+        % energy = integral of u^2 dt
+        E = sum( u.^2 ) * dt;
+
+        % cost = rmse*E;
+        % combined cost
+        % cost = w_e * rmse + w_u * E;
+
+    catch ME
+        fprintf('[!] Simulation failed: %s\n', ME.message);
+        cost = 1e6;
+    end
+end
