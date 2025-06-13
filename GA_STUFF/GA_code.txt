@@ -1,0 +1,78 @@
+% run_pid_ga.m
+% Uses GA to optimize PID gains in Shank_PID_Model.slx
+
+clear; clc; close all;
+
+%% Load supporting data if needed
+load('sampleH.mat');  % If required in model
+
+%% Genetic Algorithm Setup
+
+% Define bounds for Kp, Ki, Kd
+lb = [0.1,  0.01,   0,   1]; % Lower bounds
+ub = [200,   200, 200, 200]; % Upper bounds (tune as needed)
+
+% Fitness function handle
+fitnessFcn = @(x) pid_fitness(x);
+
+% GA options
+options = optimoptions('ga', ...
+    'Display', 'iter', ...
+    'PopulationSize', 30, ...
+    'MaxGenerations', 50, ...
+    'PlotFcn', {@gaplotbestf});
+
+% Run GA
+[x_opt, fval] = ga(fitnessFcn, 3, [], [], [], [], lb, ub, [], options);
+
+fprintf('Optimized PID gains:\nKp = %.4f\nKi = %.4f\nKd = %.4f\n', x_opt);
+
+% Save best gains
+Kp = x_opt(1);
+Ki = x_opt(2);
+Kd = x_opt(3);
+
+save('optimal_pid_gains.mat', 'Kp', 'Ki', 'Kd');
+
+%%
+
+
+% function cost = pid_fitness(x)
+%     % Unpack PID values
+%     Kp = x(1);
+%     Ki = x(2);
+%     Kd = x(3);
+% 
+%     % Assign to base workspace so Simulink can access
+%     assignin('base', 'Kp', Kp);
+%     assignin('base', 'Ki', Ki);
+%     assignin('base', 'Kd', Kd);
+% 
+%     try
+%         % Simulate the model
+%         simOut = sim('Shank_PID_Model', ...
+%             'SimulationMode', 'normal', ...
+%             'StopTime', '80', ...
+%             'SaveOutput', 'on', ...
+%             'SaveTime', 'on');
+% 
+%         % Extract output
+%         y = simOut.get('y_out').signals.values;
+%         t = simOut.get('y_out').time;
+% 
+%         % Reference signal (assume step input to 1)
+%         ref = ones(size(y));
+% 
+%         % Compute error
+%         e = ref - y;
+% 
+%         % Cost function: integral of squared error
+%         cost = sum(e.^2);
+% 
+%     catch ME
+%         % Print out what went wrong
+%         fprintf('[!] Simulation failed: %s\n', ME.message);
+%         cost = 1e6;
+% 
+%     end
+% end

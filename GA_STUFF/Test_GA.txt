@@ -1,0 +1,32 @@
+clc
+clear
+close all
+
+load('ds2.mat');
+
+% Kp = 95.231; Ki = 52.915; Kd = 61.268; N = 16.168;
+% Kp2 = 95.231; Ki2 = 52.915; Kd2 = 61.268; N2 = 16.168;
+
+Kp=96.539; Ki=0.326; Kd=77.291; N=7.2;
+Kp2 = 183.64; Ki2 = 183.644; Kd2 = 60.062; N2 = 9.8;
+
+simOut = sim('Shank_PID_Model','StopTime','80');
+figure;
+subplot(4,1,1), plot(simOut.e_out.time,simOut.e_out.signals.values), title('Error');
+subplot(4,1,2), plot(simOut.u_out.time,simOut.u_out.signals.values), title('PID output');
+subplot(4,1,3), plot(simOut.y_out.time,simOut.y_out.signals.values), title('Plant output');
+subplot(4,1,4), plot(simOut.in_signal(1,:).time,simOut.in_signal.signals.values(1,:)), title('Target Height')
+
+
+% e = simOut.in_signal.signals.values(1,:) - simOut.y_out.signals.values;
+
+
+% n = length(e(:,1));
+% RMSE = rms(simOut.in_signal.signals.values(1,:), simOut.y_out.signals.values);
+
+
+
+% disp(RMSE(1))
+
+
+
